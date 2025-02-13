@@ -1,10 +1,6 @@
-mod mbase64;
-mod rand;
-mod sha1;
+mod utils;
 
-use mbase64::encode;
-use rand::Rand;
-use sha1::sha1;
+use utils::{Rand, sha1, encode};
 
 use std::{
     collections::HashMap, io::{BufRead, BufReader, Read, Write}, net::{TcpListener, TcpStream}, sync::Arc, thread
