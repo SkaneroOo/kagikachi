@@ -5,7 +5,7 @@ use sockets::{frame::{Opcode, ReadDataFrame}, handshake::handle_handshake, respo
 use utils::Rand;
 
 use std::{
-    io::Write, net::{TcpListener, TcpStream}, sync::Arc, thread
+    io::Write, net::{Shutdown, TcpListener, TcpStream}, sync::Arc, thread
 };
 
 
@@ -32,6 +32,11 @@ fn handle_connection(mut conn: TcpStream, rand: Arc<Rand>) {
         if data.opcode == Opcode::Ping {
             data.pong(&mut conn).unwrap();
             continue;
+        }
+
+        if data.opcode == Opcode::ConnectionClosed {
+            conn.shutdown(Shutdown::Both).unwrap();
+            break;
         }
 
         let resp_mask = rand.get_mask();
