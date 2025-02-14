@@ -8,7 +8,6 @@ pub fn sha1(data: &[u8]) -> [u8; 20] {
     let mut h4 = 0xC3D2E1F0;
     let mut length = data.len() as u64;
     let prepared_length = (length + 9) + if (length + 9) % 64 == 0 { 0 } else { 64 - ((length + 9) % 64) };
-    println!("Prepared length: {}", prepared_length);
     let mut prepared = vec![0; prepared_length as usize];
 
     for i in 0..data.len() {
