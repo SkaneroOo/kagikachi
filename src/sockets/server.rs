@@ -7,13 +7,13 @@ use crate::{utils::Rand, sockets::{errors::SocketError, frame::{DataFrame, Opcod
 pub struct SocketServer<T> where T: Send{
     listener: TcpListener,
     rand: Rand,
-    message_handler: fn(DataFrame, &T) -> Response,
+    message_handler: fn(DataFrame, &mut T) -> Response,
     error_handler: fn(SocketError),
     internal_data: Mutex<T>
 }
 
 impl<T> SocketServer<T> where T: Send{
-    pub fn new(message_handler: fn(DataFrame, &T) -> Response, error_handler: fn(SocketError), internal_data: T) -> Self {
+    pub fn new(message_handler: fn(DataFrame, &mut T) -> Response, error_handler: fn(SocketError), internal_data: T) -> Self {
         Self {
             listener: TcpListener::bind("localhost:7878").unwrap(),
             rand: Rand::new(),
@@ -69,8 +69,8 @@ impl<T> SocketServer<T> where T: Send{
 
             let response;
             {
-                let lock = self.internal_data.lock().unwrap();
-                response = (self.message_handler)(data, &lock);
+                let mut lock = self.internal_data.lock().unwrap();
+                response = (self.message_handler)(data, &mut lock);
             }
 
             let payload = response.set_mask(self.rand.get_mask()).build();

@@ -11,7 +11,7 @@ pub struct Rand {
 
 impl Rand {
     pub fn new() -> Self {
-        assert!(std::path::Path::new("/dev/urandom").exists(), "Sorry, current implementation doesn't work on this system.");
+        assert!(std::path::Path::new("/dev/urandom").exists(), "Sorry, current implementation doesn't support this system.");
         Self {
             fd: Mutex::new(File::open("/dev/urandom").unwrap())
         }

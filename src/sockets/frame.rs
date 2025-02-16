@@ -64,6 +64,42 @@ pub enum Payload {
     Binary(Vec<u8>)
 }
 
+impl Payload {
+    #[allow(unused)]
+    pub fn string(self) -> Option<String> {
+        match self {
+            Payload::Text(s) => Some(s),
+            _ => None
+        }
+    }
+
+    #[allow(unused)]
+    pub fn bytes(self) -> Vec<u8> {
+        match self {
+            Payload::Text(s) => s.into_bytes(),
+            Payload::Binary(b) => b
+        }
+    }
+}
+
+impl From<String> for Payload {
+    fn from(value: String) -> Self {
+        Payload::Text(value)
+    }
+}
+
+impl From<Vec<u8>> for Payload {
+    fn from(value: Vec<u8>) -> Self {
+        Payload::Binary(value)
+    }
+}
+
+impl From<&str> for Payload {
+    fn from(value: &str) -> Self {
+        Payload::Text(value.to_string())
+    }
+}
+
 impl Into<Vec<u8>> for Payload {
     fn into(self) -> Vec<u8> {
         match self {
