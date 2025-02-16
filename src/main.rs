@@ -31,6 +31,13 @@ impl Value {
                 Some(value) => value.get_element(path),
                 None => Err(format!("Key {} not found", key))
             },
+            Value::Array(arr) => match key.parse::<usize>() {
+                Ok(i) => match arr.get(i) {
+                    Some(value) => value.get_element(path),
+                    None => Err(format!("Index {} out of range", i))
+                },
+                Err(_) => Err(format!("{} is not a valid index for array", key))
+            }
             _ => Err(format!("Invalid type: expected Object, got {}", self.typename()))
         }
     }
@@ -48,6 +55,13 @@ impl Value {
                 Some(value) => value.get_mut_element(path),
                 None => Err(format!("Key {} not found", key))
             },
+            Value::Array(arr) => match key.parse::<usize>() {
+                Ok(i) => match arr.get_mut(i) {
+                    Some(value) => value.get_mut_element(path),
+                    None => Err(format!("Index {} out of range", i))
+                },
+                Err(_) => Err(format!("{} is not a valid index for array", key))
+            }
             _ => Err(format!("Invalid type: expected Object, got {}", self.typename()))
         }
     }
@@ -120,15 +134,27 @@ fn look_for_string_end(value: &str) -> Option<usize> {
     return None
 }
 
-fn look_for_comma(value: &str) -> Option<usize> {
+fn look_for_char(value: &str, ch: char) -> Option<usize> {
     let mut in_str = false;
     let mut prev = '\0';
-    for (i, c) in value.chars().enumerate() {
+    let mut skip = 0;
+    let mut iter = value.chars().enumerate();
+    for (i, c) in &mut iter {
+        if skip > 0 {
+            skip -= 1;
+            continue
+        }
         if c == '"' && prev != '\\' {   
             in_str = !in_str;
         }
-        if c == ',' && !in_str {
+        if c == ch && !in_str {
             return Some(i)
+        }
+        if (c == '{' || c == '[' || c == '(') && (!in_str && prev != '\\') {
+            skip = match look_for_closing(&value[i..], c) {
+                Some(i) => i,
+                None => return None
+            };
         }
         prev = c;
     }
@@ -211,16 +237,16 @@ impl TryFrom<String> for Value {
                         None => return Err(ConversionError::InvalidValue(value))
                     };
                 } else {
-                    split_at = match look_for_comma(&value) {
+                    split_at = match look_for_char(&value, ',') {
                         Some(i) => i,
                         None => break
                     };
                 }
                 let temp = value[0..split_at].to_string();
                 value = value[split_at + 1..].to_string();
-                values.push(Value::try_from(temp.clone()).map_err(|_| ConversionError::InvalidValue(temp))?);
+                values.push(Value::try_from(temp.clone())?);
             }
-            values.push(Value::try_from(value.clone()).map_err(|_| ConversionError::InvalidValue(value))?);
+            values.push(Value::try_from(value.clone())?);
             
             return Ok(Self::Array(values))
         }
@@ -229,9 +255,10 @@ impl TryFrom<String> for Value {
             
             let mut value = value[1..value.len() - 1].to_string();
 
-            while let Some((k, v)) = value.split_once(":") {
+            while let Some(pos) = look_for_char(&value, ':') {
+                let (k, v) = value.split_at(pos);
                 let k = k.trim().to_owned();
-                let mut v = v.trim().to_owned();
+                let mut v = v[1..].trim().to_owned();
                 if v.starts_with("[") | v.starts_with("{") {
                     let end = look_for_closing(&v, v.chars().next().unwrap()).unwrap();
                     if v.bytes().nth(end + 1) == Some(b',') {
@@ -241,7 +268,7 @@ impl TryFrom<String> for Value {
                     }
                     v = v[..end + 1].to_owned();
                 } else {
-                    let (arg, rest) = match look_for_comma(&v) {
+                    let (arg, rest) = match look_for_char(&v, ',') {
                         Some(i) => {
                             let (a, b) = v.split_at(i);
                             (a.to_string(), b[1..].to_string())
