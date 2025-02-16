@@ -23,6 +23,15 @@ enum ConversionError {
     InvalidValue(String)
 }
 
+impl std::fmt::Display for ConversionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConversionError::InvalidType(s) => write!(f, "Invalid type: {}", s),
+            ConversionError::InvalidValue(s) => write!(f, "Invalid value: {}", s)
+        }
+    }
+}
+
 fn look_for_closing(value: &str, opening: char) -> Option<usize> {
     let closing = match opening {
         '[' => ']',
@@ -64,6 +73,47 @@ fn look_for_comma(value: &str) -> Option<usize> {
         prev = c;
     }
     return None
+}
+
+impl Into<String> for Value {
+    fn into(self) -> String {
+        match self {
+            Value::String(s) => format!("\"{}\"", s),
+            Value::Binary(v) => format!("b'{}'", utils::encode(&v)),
+            Value::Integer(i) => i.to_string(),
+            Value::Boolean(b) => b.to_string(),
+            Value::Float(f) => f.to_string(),
+            Value::Array(a) => {
+                let mut s = String::from("[");
+                let len = a.len();
+                for (i, v) in a.into_iter().enumerate() {
+                    s.push_str(&Into::<String>::into(v));
+                    if i != len - 1 {
+                        s.push_str(", ");
+                    }
+                }
+                s.push_str("]");
+                s
+            },
+            Value::Object(o) => {
+                let mut s = String::from("{");
+                let len = o.len();
+                for (i, (k, v)) in o.into_iter().enumerate() {
+                    s.push('"');
+                    s.push_str(&k);
+                    s.push('"');
+                    s.push_str(": ");
+                    s.push_str(&Into::<String>::into(v));
+                    if i != len - 1 {
+                        s.push_str(", ");
+                    }
+                }
+                s.push_str("}");
+                s
+            },
+            Value::Null => "null".to_string()
+        }
+    }
 }
 
 impl TryFrom<String> for Value {
@@ -196,7 +246,7 @@ fn message_handler(msg: DataFrame, storage: &mut HashMap<String, Value>) -> Resp
                 },
                 None => return Response::builder().set_body("Key not found")
             };
-            Response::builder().set_body(format!("{value:?}"))
+            Response::builder().set_body(Into::<String>::into(value))
         },
         _ => Response::builder().set_body("Unknown command")
     }
