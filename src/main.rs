@@ -17,6 +17,55 @@ enum Value {
     Null
 }
 
+impl Value {
+    pub fn get_element(&self, path: &str) -> Result<&Value, String> {
+        if path.is_empty() {
+            return Ok(self);
+        }
+        let (key, path) = match path.split_once(".") {
+            Some((key, path)) => (key, path),
+            None => (path, "")
+        };
+        match self {
+            Value::Object(map) => match map.get(key) {
+                Some(value) => value.get_element(path),
+                None => Err(format!("Key {} not found", key))
+            },
+            _ => Err(format!("Invalid type: expected Object, got {}", self.typename()))
+        }
+    }
+
+    pub fn get_mut_element(&mut self, path: &str) -> Result<&mut Value, String> {
+        if path.is_empty() {
+            return Ok(self);
+        }
+        let (key, path) = match path.split_once(".") {
+            Some((key, path)) => (key, path),
+            None => (path, "")
+        };
+        match self {
+            Value::Object(map) => match map.get_mut(key) {
+                Some(value) => value.get_mut_element(path),
+                None => Err(format!("Key {} not found", key))
+            },
+            _ => Err(format!("Invalid type: expected Object, got {}", self.typename()))
+        }
+    }
+
+    fn typename(&self) -> String {
+        match self {
+            Value::String(_) => "String",
+            Value::Binary(_) => "Binary",
+            Value::Integer(_) => "Integer",
+            Value::Boolean(_) => "Boolean",
+            Value::Float(_) => "Float",
+            Value::Array(_) => "Array",
+            Value::Object(_) => "Object",
+            Value::Null => "Null"
+        }.to_string()
+    }
+}
+
 #[derive(Debug, Clone)]
 enum ConversionError {
     InvalidType(String),
@@ -60,6 +109,17 @@ fn look_for_closing(value: &str, opening: char) -> Option<usize> {
     return None
 }
 
+fn look_for_string_end(value: &str) -> Option<usize> {
+    let mut prev = '"';
+    for (i, c) in value.chars().enumerate().skip(1) {
+        if c == '"' && prev != '\\' {   
+            return Some(i)
+        }
+        prev = c;
+    }
+    return None
+}
+
 fn look_for_comma(value: &str) -> Option<usize> {
     let mut in_str = false;
     let mut prev = '\0';
@@ -76,6 +136,12 @@ fn look_for_comma(value: &str) -> Option<usize> {
 }
 
 impl Into<String> for Value {
+    fn into(self) -> String {
+        Into::<String>::into(&self)
+    }
+}
+
+impl Into<String> for &Value {
     fn into(self) -> String {
         match self {
             Value::String(s) => format!("\"{}\"", s),
@@ -121,6 +187,12 @@ impl TryFrom<String> for Value {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let value = value.trim().to_string();
         if value.starts_with("\"") && value.ends_with("\"") {
+            if let Some(i) = look_for_string_end(&value) {
+                if i != value.chars().count() - 1 {
+                    println!("{} - {}", i, value.chars().count());
+                    return Err(ConversionError::InvalidType(value))
+                }
+            }
             return Ok(Self::String(value[1..value.len() - 1].to_string()))
         }
         if value.starts_with("b\'") && value.ends_with("\'") {
@@ -202,6 +274,7 @@ impl TryFrom<String> for Value {
     }
 }
 
+
 fn message_handler(msg: DataFrame, storage: &mut HashMap<String, Value>) -> Response {
     assert!(msg.opcode == Opcode::Text);
     let message = msg.payload.string().expect("Assertion failed, check if payload was properly decoded");
@@ -216,11 +289,32 @@ fn message_handler(msg: DataFrame, storage: &mut HashMap<String, Value>) -> Resp
                 Some((key, value)) => (key, value),
                 None => return Response::builder().set_body("Invalid arguments")
             };
-            storage.insert(key.to_string(), match Value::try_from(value.to_string()) {
-                Ok(value) => value,
+            let value = match Value::try_from(value.to_string()) {
+                Ok(v) => v,
                 Err(e) => return Response::builder().set_body(format!("Invalid value: {e:?}"))
-            });
-            Response::builder().set_body("OK")
+            };
+            let (key, path) = match key.split_once(".") {
+                Some((key, path)) => (key, Some(path)),
+                None => (key, None)
+            };
+            match path {
+                None => {
+                    storage.insert(key.to_string(), value);
+                    Response::builder().set_body("OK")
+                },
+                Some(path) => {
+                    match storage.get_mut(key) {
+                        Some(val) => match val.get_mut_element(path) {
+                            Ok(val) => {
+                                *val = value;
+                                Response::builder().set_body("OK")
+                            },
+                            Err(e) => Response::builder().set_body(e)
+                        },
+                        None => Response::builder().set_body("Key not found")
+                    }
+                }
+            }
         },
         "get" => {
             let (key, path) = match args.split_once(".") {
@@ -229,19 +323,10 @@ fn message_handler(msg: DataFrame, storage: &mut HashMap<String, Value>) -> Resp
             };
             let value = match storage.get(key) {
                 Some(value) => match path {
-                    None => value.clone(),
-                    Some(path) => {
-                        let mut value = value.clone();
-                        for p in path.split(".") {
-                            match value {
-                                Value::Object(object) => value = match object.get(p) {
-                                    Some(value) => value.clone(),
-                                    None => return Response::builder().set_body("Key not found")
-                                },
-                                _ => return Response::builder().set_body("Invalid path")
-                            }
-                        }
-                        value
+                    None => value,
+                    Some(path) => match value.get_element(path) {
+                        Ok(value) => value,
+                        Err(e) => return Response::builder().set_body(e)
                     }
                 },
                 None => return Response::builder().set_body("Key not found")
