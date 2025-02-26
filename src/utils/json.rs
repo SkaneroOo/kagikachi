@@ -229,7 +229,7 @@ impl TryFrom<String> for Value {
             loop {
                 if value.starts_with("[") | value.starts_with("{") {
                     split_at = match look_for_closing(&value, value.bytes().next().unwrap()) {
-                        Some(i) => i,
+                        Some(i) => i + 1,
                         None => return Err(ConversionError::InvalidValue(value))
                     };
                 } else {

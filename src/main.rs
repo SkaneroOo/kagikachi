@@ -83,10 +83,13 @@ fn del_cmd(args: &str, storage: &mut HashMap<String, Value>) -> Response {
                                     }
                                 },
                                 Value::Array(arr) => {
-                                    let index = match key.parse::<usize>() {
+                                    let index = match path.parse::<usize>() {
                                         Ok(i) => i,
                                         Err(_) => return Response::builder().set_body("Invalid index")
                                     };
+                                    if index >= arr.len() {
+                                        return Response::builder().set_body("Index out of range")
+                                    }
                                     arr.remove(index);
                                     return Response::builder().set_body("OK")
                                 },
@@ -145,7 +148,10 @@ fn load_cmd(args: &str, storage: &mut HashMap<String, Value>) -> Response {
 }
 
 fn message_handler(msg: DataFrame, storage: &mut HashMap<String, Value>) -> Response {
-    assert!(msg.opcode == Opcode::Text);
+    match msg.opcode {
+        Opcode::Text => (),
+        _ => return Response::builder().set_body("Invalid message type")
+    }
     let message = msg.payload.string().expect("Assertion failed, check if payload was properly decoded");
     let (command, args) = match message.split_once(" ") {
         Some((command, args)) => (command, args),
