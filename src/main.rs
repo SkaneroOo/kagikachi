@@ -13,7 +13,7 @@ fn set_cmd(args: &str, storage: &mut HashMap<String, Value>) -> Response {
         Some((key, value)) => (key, value),
         None => return Response::builder().set_body("Invalid arguments")
     };
-    let value = match Value::try_from(value.to_string()) {
+    let value = match Value::try_from(value) {
         Ok(v) => v,
         Err(e) => return Response::builder().set_body(format!("Invalid value: {e:?}"))
     };
@@ -132,7 +132,7 @@ fn dump_cmd(storage: &HashMap<String, Value>) -> Response {
 }
 
 fn load_cmd(args: &str, storage: &mut HashMap<String, Value>) -> Response {
-    let value = match Value::try_from(args.to_string()) {
+    let value = match Value::try_from(args) {
         Ok(v) => v,
         Err(e) => return Response::builder().set_body(format!("Invalid value: {e:?}"))
     };

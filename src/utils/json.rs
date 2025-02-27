@@ -91,33 +91,33 @@ impl std::fmt::Display for ConversionError {
     }
 }
 
-fn look_for_closing(value: &str, opening: u8) -> Option<usize> {
-    let closing = match opening {
-        b'[' => b']',
-        b'{' => b'}',
-        b'(' => b')',
-        _ => panic!("Invalid opening character")
-    };
-    let mut depth = 0;
-    let mut in_str = false;
-    let mut prev = b'\0';
-    for (i, c) in value.bytes().enumerate() {
-        if c == b'"' && prev != b'\\' {   
-            in_str = !in_str;
-        }
-        if c == opening && !in_str {
-            depth += 1;
-        }
-        if c == closing && !in_str {
-            depth -= 1;
-        }
-        if depth == 0 {
-            return Some(i)
-        }
-        prev = c;
-    }
-    return None
-}
+// fn look_for_closing(value: &str, opening: u8) -> Option<usize> {
+//     let closing = match opening {
+//         b'[' => b']',
+//         b'{' => b'}',
+//         b'(' => b')',
+//         _ => panic!("Invalid opening character")
+//     };
+//     let mut depth = 0;
+//     let mut in_str = false;
+//     let mut prev = b'\0';
+//     for (i, c) in value.bytes().enumerate() {
+//         if c == b'"' && prev != b'\\' {   
+//             in_str = !in_str;
+//         }
+//         if c == opening && !in_str {
+//             depth += 1;
+//         }
+//         if c == closing && !in_str {
+//             depth -= 1;
+//         }
+//         if depth == 0 {
+//             return Some(i)
+//         }
+//         prev = c;
+//     }
+//     return None
+// }
 
 fn look_for_string_end(value: &str) -> Option<usize> {
     let mut prev = b'"';
@@ -133,26 +133,26 @@ fn look_for_string_end(value: &str) -> Option<usize> {
 fn look_for_char(value: &str, ch: u8) -> Option<usize> {
     let mut in_str = false;
     let mut prev = b'\0';
-    let mut skip = 0;
-    let mut iter = value.bytes().enumerate();
-    for (i, c) in &mut iter {
-        if skip > 0 {
-            skip -= 1;
-            continue
-        }
+    let mut depth = 0;
+    for (i, c) in value.bytes().enumerate() {
         if c == b'"' && prev != b'\\' {   
             in_str = !in_str;
-        }
-        if c == ch && !in_str {
-            return Some(i)
+            prev = c;
+            continue;
         }
         if (c == b'{' || c == b'[' || c == b'(') && (!in_str && prev != b'\\') {
-            skip = match look_for_closing(&value[i..], c) {
-                Some(i) => i,
-                None => return None
-            };
+            depth += 1;
+            prev = c;
+            continue;
         }
-        prev = c;
+        if (c == b'}' || c == b']' || c == b')') && (!in_str && prev != b'\\') {
+            depth -= 1;
+            prev = c;
+            continue;
+        }
+        if c == ch && !in_str && depth == 0 {
+            return Some(i)
+        }
     }
     return None
 }
@@ -204,77 +204,74 @@ impl Into<String> for &Value {
     }
 }
 
-impl TryFrom<String> for Value {
+impl TryFrom<&str> for Value {
     type Error = ConversionError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let value = value.trim().to_string();
-        if value.starts_with("\"") && value.ends_with("\"") {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let value = value.trim();
+        if value.starts_with('"') && value.ends_with('"') {
             if let Some(i) = look_for_string_end(&value) {
                 if i != value.bytes().count() - 1 {
                     println!("{} - {}", i, value.bytes().count());
-                    return Err(ConversionError::InvalidType(value))
+                    return Err(ConversionError::InvalidType(value.to_string()))
                 }
             }
             return Ok(Self::String(value[1..value.len() - 1].to_string()))
         }
-        if value.starts_with("b\'") && value.ends_with("\'") {
+        if value.starts_with("b\'") && value.ends_with('\'') {
             return Ok(Self::Binary(utils::decode(&value[2..value.len() - 1])))
         }
-        if value.starts_with("[") && value.ends_with("]") {
+        if value.starts_with('[') && value.ends_with(']') {
             let mut values = vec![];
 
-            let mut value = value[1..value.len() - 1].to_string();
-            let mut split_at;
+            let mut value = &value[1..value.len() - 1];
+            // let mut split_at;
 
-            loop {
-                if value.starts_with("[") | value.starts_with("{") {
-                    split_at = match look_for_closing(&value, value.bytes().next().unwrap()) {
-                        Some(i) => i + 1,
-                        None => return Err(ConversionError::InvalidValue(value))
-                    };
-                } else {
-                    split_at = match look_for_char(&value, b',') {
-                        Some(i) => i,
-                        None => break
-                    };
-                }
-                let temp = value[0..split_at].to_string();
-                value = value[split_at + 1..].to_string();
-                values.push(Value::try_from(temp.clone())?);
+            while let Some(pos) = look_for_char(&value, b',') {
+                let temp = &value[0..pos];
+                value = &value[pos + 1..];
+                values.push(Value::try_from(temp)?);
             }
-            values.push(Value::try_from(value.clone())?);
+            // loop {
+            //     if value.starts_with('[') | value.starts_with('{') {
+            //         split_at = match look_for_closing(&value, value.bytes().next().unwrap()) {
+            //             Some(i) => i + 1,
+            //             None => return Err(ConversionError::InvalidValue(value.to_string()))
+            //         };
+            //     } else {
+            //         split_at = match look_for_char(&value, b',') {
+            //             Some(i) => i,
+            //             None => break
+            //         };
+            //     }
+            //     let temp = &value[0..split_at];
+            //     value = &value[split_at + 1..];
+            //     values.push(Value::try_from(temp)?);
+            // }
+            values.push(Value::try_from(value)?);
             
             return Ok(Self::Array(values))
         }
         if value.starts_with("{") && value.ends_with("}") {
             let mut object = HashMap::new();
             
-            let mut value = value[1..value.len() - 1].to_string();
+            let mut value = &value[1..value.len() - 1];
 
             while let Some(pos) = look_for_char(&value, b':') {
-                let (k, v) = value.split_at(pos);
-                let k = k.trim().to_owned();
-                let mut v = v[1..].trim().to_owned();
-                if v.starts_with("[") | v.starts_with("{") {
-                    let end = look_for_closing(&v, v.bytes().next().unwrap()).unwrap();
-                    if v.bytes().nth(end + 1) == Some(b',') {
-                        value = v[end + 2..].to_string();
-                    } else {
-                        value = v[end + 1..].to_string();
+                let k = value[0..pos].trim();
+                let mut v = &value[pos + 1..];
+                // let (k, v) = value.split_at(pos);
+                // let k = k.trim();
+                // let mut v = v[1..].trim();
+                match look_for_char(&v, b',') {
+                    Some(i) => {
+                        value = &v[i + 1..];
+                        v = &v[..i];
+                    },
+                    None => {
+                        value = "";
                     }
-                    v = v[..end + 1].to_owned();
-                } else {
-                    let (arg, rest) = match look_for_char(&v, b',') {
-                        Some(i) => {
-                            let (a, b) = v.split_at(i);
-                            (a.to_string(), b[1..].to_string())
-                        },
-                        None => (v, "".to_string())
-                    };
-                    v = arg;
-                    value = rest;
                 }
-                object.insert(k[1..k.len() - 1].to_string(), Value::try_from(v.clone())?);
+                object.insert(k[1..k.len() - 1].to_string(), Value::try_from(v)?);
             }
             return Ok(Self::Object(object))
         }
@@ -293,6 +290,6 @@ impl TryFrom<String> for Value {
             return Ok(Self::Null)
         }
         
-        Err(ConversionError::InvalidType(value))
+        Err(ConversionError::InvalidType(value.to_string()))
     }
 }
