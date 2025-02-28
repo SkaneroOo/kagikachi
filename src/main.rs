@@ -13,7 +13,7 @@ fn set_cmd(args: &str, storage: &mut HashMap<String, Value>) -> Response {
         Some((key, value)) => (key, value),
         None => return Response::builder().set_body("Invalid arguments")
     };
-    let value = match Value::try_from(value) {
+    let value = match Value::deserialize(value) {
         Ok(v) => v,
         Err(e) => return Response::builder().set_body(format!("Invalid value: {e:?}"))
     };
@@ -132,7 +132,7 @@ fn dump_cmd(storage: &HashMap<String, Value>) -> Response {
 }
 
 fn load_cmd(args: &str, storage: &mut HashMap<String, Value>) -> Response {
-    let value = match Value::try_from(args) {
+    let value = match Value::deserialize(args) {
         Ok(v) => v,
         Err(e) => return Response::builder().set_body(format!("Invalid value: {e:?}"))
     };
@@ -172,8 +172,116 @@ fn error_handler(e: SocketError) {
     println!("Error: {e}")
 }
 
+
 fn main() {
     let cache: HashMap<String, Value> = HashMap::new();
     let server = SocketServer::new(message_handler, error_handler, cache);
     server.run();
+    // json_benchmark();
+}
+
+#[allow(unused)]
+fn json_benchmark() {
+    use std::time::Instant;
+    let json = r#"{"val": 1,
+    "web-app": {
+  "servlet": [   
+    {
+      "servlet-name": "cofaxCDS",
+      "servlet-class": "org.cofax.cds.CDSServlet",
+      "init-param": {
+        "configGlossary:installationAt": "Philadelphia, PA",
+        "configGlossary:adminEmail": "ksm@pobox.com",
+        "configGlossary:poweredBy": "Cofax",
+        "configGlossary:poweredByIcon": "/images/cofax.gif",
+        "configGlossary:staticPath": "/content/static",
+        "templateProcessorClass": "org.cofax.WysiwygTemplate",
+        "templateLoaderClass": "org.cofax.FilesTemplateLoader",
+        "templatePath": "templates",
+        "templateOverridePath": "",
+        "defaultListTemplate": "listTemplate.htm",
+        "defaultFileTemplate": "articleTemplate.htm",
+        "useJSP": false,
+        "jspListTemplate": "listTemplate.jsp",
+        "jspFileTemplate": "articleTemplate.jsp",
+        "cachePackageTagsTrack": 200,
+        "cachePackageTagsStore": 200,
+        "cachePackageTagsRefresh": 60,
+        "cacheTemplatesTrack": 100,
+        "cacheTemplatesStore": 50,
+        "cacheTemplatesRefresh": 15,
+        "cachePagesTrack": 200,
+        "cachePagesStore": 100,
+        "cachePagesRefresh": 10,
+        "cachePagesDirtyRead": 10,
+        "searchEngineListTemplate": "forSearchEnginesList.htm",
+        "searchEngineFileTemplate": "forSearchEngines.htm",
+        "searchEngineRobotsDb": "WEB-INF/robots.db",
+        "useDataStore": true,
+        "dataStoreClass": "org.cofax.SqlDataStore",
+        "redirectionClass": "org.cofax.SqlRedirection",
+        "dataStoreName": "cofax",
+        "dataStoreDriver": "com.microsoft.jdbc.sqlserver.SQLServerDriver",
+        "dataStoreUrl": "jdbc:microsoft:sqlserver://LOCALHOST:1433;DatabaseName=goon",
+        "dataStoreUser": "sa",
+        "dataStorePassword": "dataStoreTestQuery",
+        "dataStoreTestQuery": "SET NOCOUNT ON;select test='test';",
+        "dataStoreLogFile": "/usr/local/tomcat/logs/datastore.log",
+        "dataStoreInitConns": 10,
+        "dataStoreMaxConns": 100,
+        "dataStoreConnUsageLimit": 100,
+        "dataStoreLogLevel": "debug",
+        "maxUrlLength": 500}},
+    {
+      "servlet-name": "cofaxEmail",
+      "servlet-class": "org.cofax.cds.EmailServlet",
+      "init-param": {
+      "mailHost": "mail1",
+      "mailHostOverride": "mail2"}},
+    {
+      "servlet-name": "cofaxAdmin",
+      "servlet-class": "org.cofax.cds.AdminServlet"},
+ 
+    {
+      "servlet-name": "fileServlet",
+      "servlet-class": "org.cofax.cds.FileServlet"},
+    {
+      "servlet-name": "cofaxTools",
+      "servlet-class": "org.cofax.cms.CofaxToolsServlet",
+      "init-param": {
+        "templatePath": "toolstemplates/",
+        "log": 1,
+        "logLocation": "/usr/local/tomcat/logs/CofaxTools.log",
+        "logMaxSize": "",
+        "dataLog": 1,
+        "dataLogLocation": "/usr/local/tomcat/logs/dataLog.log",
+        "dataLogMaxSize": "",
+        "removePageCache": "/content/admin/remove?cache=pages&id=",
+        "removeTemplateCache": "/content/admin/remove?cache=templates&id=",
+        "fileTransferFolder": "/usr/local/tomcat/webapps/content/fileTransferFolder",
+        "lookInContext": 1,
+        "adminGroupID": 4,
+        "betaServer": true}}],
+  "servlet-mapping": {
+    "cofaxCDS": "/",
+    "cofaxEmail": "/cofaxutil/aemail/*",
+    "cofaxAdmin": "/admin/*",
+    "fileServlet": "/static/*",
+    "cofaxTools": "/tools/*"},
+ 
+  "taglib": {
+    "taglib-uri": "cofax.tld",
+    "taglib-location": "/WEB-INF/tlds/cofax.tld"}}}"#;
+
+    let mut start = Instant::now();
+    for _ in 0..100000 {
+        // let _ = serde_json::from_str::<serde_json::Value>(json).unwrap();
+    }
+    println!("Serde: {}ms", start.elapsed().as_millis());
+
+    start = Instant::now();
+    for _ in 0..100000 {
+        let _ = Value::deserialize(json).unwrap();
+    }
+    println!("My impl: {}ms", start.elapsed().as_millis());
 }

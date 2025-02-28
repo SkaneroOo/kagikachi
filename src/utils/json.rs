@@ -1,19 +1,53 @@
 use std::collections::HashMap;
-use crate::utils;
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Value {
-    String(String),
-    Binary(Vec<u8>),
-    Integer(isize),
-    Boolean(bool),
-    Float(f64),
-    Array(Vec<Value>),
     Object(HashMap<String, Value>),
+    Array(Vec<Value>),
+    String(String),
+    Integer(isize),
+    Float(f64),
+    Boolean(bool),
     Null
 }
 
 impl Value {
+    pub fn string(&self) -> Result<&String, &'static str> {
+        match self {
+            Value::String(s) => Ok(s),
+            _ => Err("Invalid type")
+        }
+    }
+
+    pub fn array(&self) -> Result<&Vec<Value>, &'static str> {
+        match self {
+            Value::Array(a) => Ok(a),
+            _ => Err("Invalid type")
+        }
+    }
+
+    pub fn object(&self) -> Result<&HashMap<String, Value>, &'static str> {
+        match self {
+            Value::Object(o) => Ok(o),
+            _ => Err("Invalid type")
+        }
+    }
+
+    pub fn float(&self) -> Result<f64, &'static str> {
+        match self {
+            Value::Float(f) => Ok(*f),
+            _ => Err("Invalid type")
+        }
+    }
+
+    pub fn integer(&self) -> Result<isize, &'static str> {
+        match self {
+            Value::Integer(i) => Ok(*i),
+            _ => Err("Invalid type")
+        }
+    }
+
+
     pub fn get_element(&self, path: &str) -> Result<&Value, String> {
         if path.is_empty() {
             return Ok(self);
@@ -65,7 +99,7 @@ impl Value {
     fn typename(&self) -> String {
         match self {
             Value::String(_) => "String",
-            Value::Binary(_) => "Binary",
+            // Value::Binary(_) => "Binary",
             Value::Integer(_) => "Integer",
             Value::Boolean(_) => "Boolean",
             Value::Float(_) => "Float",
@@ -76,85 +110,251 @@ impl Value {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum ConversionError {
-    InvalidType(String),
-    InvalidValue(String)
+impl Value {
+    pub fn deserialize(value: &str) -> Result<Value, &'static str> {
+        if value.is_empty() {
+            return Ok(Value::Null)
+        }
+        let bytes = value.as_bytes();
+        let mut position: usize = 0;
+        skip_whitespace(bytes, &mut position);
+
+        parse_value(bytes, &mut position)
+    }
+
+    pub fn serialize(&self) -> String {
+        self.into()
+    }
 }
 
-impl std::fmt::Display for ConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConversionError::InvalidType(s) => write!(f, "Invalid type: {}", s),
-            ConversionError::InvalidValue(s) => write!(f, "Invalid value: {}", s)
+fn parse_value(bytes: &[u8], position: &mut usize) -> Result<Value, &'static str> {
+    match bytes[*position] {
+        b'{' => {
+            return parse_object(bytes, position)
+        }
+        b'[' => {
+            return parse_array(bytes, position)
+        }
+        b'"' => {
+            return parse_string(bytes, position)
+        }
+        b't' | b'f' => {
+            return parse_boolean(bytes, position)
+        }
+        b'n' => {
+            return parse_null(bytes, position)
+        }
+        b'-' | b'0'..=b'9' => {
+            return parse_number(bytes, position)
+        }
+        _ => {
+            return Err("Invalid value")
         }
     }
 }
 
-// fn look_for_closing(value: &str, opening: u8) -> Option<usize> {
-//     let closing = match opening {
-//         b'[' => b']',
-//         b'{' => b'}',
-//         b'(' => b')',
-//         _ => panic!("Invalid opening character")
-//     };
-//     let mut depth = 0;
-//     let mut in_str = false;
-//     let mut prev = b'\0';
-//     for (i, c) in value.bytes().enumerate() {
-//         if c == b'"' && prev != b'\\' {   
-//             in_str = !in_str;
-//         }
-//         if c == opening && !in_str {
-//             depth += 1;
-//         }
-//         if c == closing && !in_str {
-//             depth -= 1;
-//         }
-//         if depth == 0 {
-//             return Some(i)
-//         }
-//         prev = c;
-//     }
-//     return None
-// }
-
-fn look_for_string_end(value: &str) -> Option<usize> {
-    let mut prev = b'"';
-    for (i, c) in value.bytes().enumerate().skip(1) {
-        if c == b'"' && prev != b'\\' {   
-            return Some(i)
+fn skip_whitespace(bytes: &[u8], position: &mut usize) {
+    for i in *position..bytes.len() {
+        if !bytes[i].is_ascii_whitespace() {
+            *position = i;
+            return
         }
-        prev = c;
     }
-    return None
+    *position = bytes.len()
 }
 
-fn look_for_char(value: &str, ch: u8) -> Option<usize> {
-    let mut in_str = false;
-    let mut prev = b'\0';
-    let mut depth = 0;
-    for (i, c) in value.bytes().enumerate() {
-        if c == b'"' && prev != b'\\' {   
-            in_str = !in_str;
-            prev = c;
-            continue;
+fn parse_object(bytes: &[u8], position: &mut usize) -> Result<Value, &'static str> {
+    let mut map = HashMap::new();
+    *position += 1;
+    skip_whitespace(bytes, position);
+    if *position == bytes.len() {
+        return Err("Invalid data")
+    }
+    if bytes[*position] == b'}' {
+        *position += 1;
+        return Ok(Value::Object(map))
+    }
+    loop {
+        let key = match parse_string(bytes, position) {
+            Ok(v) => v.string().expect("Unexpected key type recieved").to_owned(),
+            Err(_) => return Err("Invalid key")
+        };
+
+        skip_whitespace(bytes, position);
+        if *position == bytes.len() {
+            return Err("Invalid data")
         }
-        if (c == b'{' || c == b'[' || c == b'(') && (!in_str && prev != b'\\') {
-            depth += 1;
-            prev = c;
-            continue;
+        if bytes[*position] != b':' {
+            return Err("Invalid token")
         }
-        if (c == b'}' || c == b']' || c == b')') && (!in_str && prev != b'\\') {
-            depth -= 1;
-            prev = c;
-            continue;
+        *position += 1;
+        skip_whitespace(bytes, position);
+        if *position == bytes.len() {
+            return Err("Invalid data")
         }
-        if c == ch && !in_str && depth == 0 {
-            return Some(i)
+
+        let value = parse_value(bytes, position)?;
+
+        map.insert(key, value);
+
+        skip_whitespace(bytes, position);
+        if *position == bytes.len() {
+            return Err("Invalid data")
+        }
+        if bytes[*position] == b'}' {
+            *position += 1;
+            return Ok(Value::Object(map))
+        }
+        if bytes[*position] != b',' {
+            return Err("Invalid token")
+        }
+        *position += 1;
+        skip_whitespace(bytes, position);
+        if *position == bytes.len() {
+            return Err("Invalid data")
         }
     }
-    return None
+}
+
+fn parse_string(bytes: &[u8], position: &mut usize) -> Result<Value, &'static str> {
+    *position += 1;
+    let start = *position;
+    let mut skip = false;
+    loop {
+        if skip {
+            *position += 1;
+            skip = false;
+            continue
+        }
+        if bytes[*position] == b'\\' {
+            *position += 1;
+            skip = true;
+            continue
+        }
+        if bytes[*position] == b'"' {
+            *position += 1;
+            return Ok(Value::String(String::from_utf8_lossy(&bytes[start..*position-1]).to_string()))
+        }
+        *position += 1;
+        if *position == bytes.len() {
+            return Err("Invalid data")
+        }
+    }
+
+}
+
+fn parse_array(bytes: &[u8], position: &mut usize) -> Result<Value, &'static str> {
+    let mut array = Vec::new();
+    *position += 1;
+    skip_whitespace(bytes, position);
+    if *position == bytes.len() {
+        return Err("Invalid data")
+    }
+    if bytes[*position] == b']' {
+        *position += 1;
+        return Ok(Value::Array(array))
+    }
+    loop {
+        array.push(parse_value(bytes, position)?);
+        skip_whitespace(bytes, position);
+        if *position == bytes.len() {
+            return Err("Invalid data")
+        }
+        if bytes[*position] == b']' {
+            *position += 1;
+            return Ok(Value::Array(array))
+        }
+        if bytes[*position] != b',' {
+            return Err("Invalid token")
+        }
+        *position += 1;
+        skip_whitespace(bytes, position);
+        if *position == bytes.len() {
+            return Err("Invalid data")
+        }
+    }
+}
+
+fn parse_boolean(bytes: &[u8], position: &mut usize) -> Result<Value, &'static str> {
+    match bytes[*position..*position + 4] {
+        [b't', b'r', b'u', b'e'] => {
+            *position += 4;
+            return Ok(Value::Boolean(true))
+        }
+        [b'f', b'a', b'l', b's'] => {
+            if bytes[*position + 4] != b'e' {
+                return Err("Invalid token")
+            }
+            *position += 5;
+            return Ok(Value::Boolean(false))
+        }
+        _ => {
+            return Err("Invalid token")
+    }
+        
+    }
+}
+
+fn parse_null(bytes: &[u8], position: &mut usize) -> Result<Value, &'static str> {
+    if bytes[*position..*position + 4] == [b'n', b'u', b'l', b'l'] {
+        *position += 4;
+        return Ok(Value::Null)
+    }
+    Err("Invalid token")
+}
+
+fn parse_number(bytes: &[u8], position: &mut usize) -> Result<Value, &'static str> {
+    let start = *position;
+    let mut decimal = false;
+    let mut exponent = false;
+    if bytes[*position] == b'-' {
+        *position += 1;
+    }
+    loop {
+        match bytes[*position] {
+            b'0'..=b'9' => {
+                *position += 1;
+            }
+            b'.' => {
+                if decimal {
+                    return Err("Invalid token")
+                }
+                decimal = true;
+                *position += 1;
+            }
+            b'e' | b'E' => {
+                if exponent {
+                    return Err("Invalid token")
+                }
+                exponent = true;
+                *position += 1;
+            }
+            b'-' | b'+' => {
+                if !exponent {
+                    return Err("Invalid token")
+                }
+                *position += 1;
+            }
+            _ => break
+        }
+        if *position == bytes.len() {
+            break;
+        }
+    }
+
+    let value = String::from_utf8_lossy(&bytes[start..*position]).to_string();
+
+    if decimal || exponent {
+        Ok(Value::Float(match value.parse() {
+            Ok(f) => f,
+            Err(_) => return Err("Invalid token")
+        }))
+    } else {
+        Ok(Value::Integer(match value.parse() {
+            Ok(i) => i,
+            Err(_) => return Err("Invalid token")
+        }))
+    }
 }
 
 impl Into<String> for Value {
@@ -167,7 +367,7 @@ impl Into<String> for &Value {
     fn into(self) -> String {
         match self {
             Value::String(s) => format!("\"{}\"", s),
-            Value::Binary(v) => format!("b'{}'", utils::encode(&v)),
+            // Value::Binary(v) => format!("b'{}'", utils::encode(&v)),
             Value::Integer(i) => i.to_string(),
             Value::Boolean(b) => b.to_string(),
             Value::Float(f) => f.to_string(),
@@ -201,95 +401,5 @@ impl Into<String> for &Value {
             },
             Value::Null => "null".to_string()
         }
-    }
-}
-
-impl TryFrom<&str> for Value {
-    type Error = ConversionError;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let value = value.trim();
-        if value.starts_with('"') && value.ends_with('"') {
-            if let Some(i) = look_for_string_end(&value) {
-                if i != value.bytes().count() - 1 {
-                    println!("{} - {}", i, value.bytes().count());
-                    return Err(ConversionError::InvalidType(value.to_string()))
-                }
-            }
-            return Ok(Self::String(value[1..value.len() - 1].to_string()))
-        }
-        if value.starts_with("b\'") && value.ends_with('\'') {
-            return Ok(Self::Binary(utils::decode(&value[2..value.len() - 1])))
-        }
-        if value.starts_with('[') && value.ends_with(']') {
-            let mut values = vec![];
-
-            let mut value = &value[1..value.len() - 1];
-            // let mut split_at;
-
-            while let Some(pos) = look_for_char(&value, b',') {
-                let temp = &value[0..pos];
-                value = &value[pos + 1..];
-                values.push(Value::try_from(temp)?);
-            }
-            // loop {
-            //     if value.starts_with('[') | value.starts_with('{') {
-            //         split_at = match look_for_closing(&value, value.bytes().next().unwrap()) {
-            //             Some(i) => i + 1,
-            //             None => return Err(ConversionError::InvalidValue(value.to_string()))
-            //         };
-            //     } else {
-            //         split_at = match look_for_char(&value, b',') {
-            //             Some(i) => i,
-            //             None => break
-            //         };
-            //     }
-            //     let temp = &value[0..split_at];
-            //     value = &value[split_at + 1..];
-            //     values.push(Value::try_from(temp)?);
-            // }
-            values.push(Value::try_from(value)?);
-            
-            return Ok(Self::Array(values))
-        }
-        if value.starts_with("{") && value.ends_with("}") {
-            let mut object = HashMap::new();
-            
-            let mut value = &value[1..value.len() - 1];
-
-            while let Some(pos) = look_for_char(&value, b':') {
-                let k = value[0..pos].trim();
-                let mut v = &value[pos + 1..];
-                // let (k, v) = value.split_at(pos);
-                // let k = k.trim();
-                // let mut v = v[1..].trim();
-                match look_for_char(&v, b',') {
-                    Some(i) => {
-                        value = &v[i + 1..];
-                        v = &v[..i];
-                    },
-                    None => {
-                        value = "";
-                    }
-                }
-                object.insert(k[1..k.len() - 1].to_string(), Value::try_from(v)?);
-            }
-            return Ok(Self::Object(object))
-        }
-        if value.contains(".") { 
-            if let Ok(value) = value.parse::<f64>() {
-                return Ok(Self::Float(value))
-            }
-        }
-        if let Ok(value) = value.parse::<isize>() {
-            return Ok(Self::Integer(value))
-        }
-        if let Ok(value) = value.parse::<bool>() {
-            return Ok(Self::Boolean(value))
-        }
-        if value == "null" {
-            return Ok(Self::Null)
-        }
-        
-        Err(ConversionError::InvalidType(value.to_string()))
     }
 }
