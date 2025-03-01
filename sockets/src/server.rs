@@ -1,7 +1,9 @@
 use std::{
     io::Write, net::{Shutdown, TcpListener, TcpStream}, sync::Mutex, thread
 };
-use crate::{utils::Rand, sockets::{errors::SocketError, frame::{DataFrame, Opcode, ReadDataFrame}, handshake::handle_handshake, response::Response}};
+
+use utils::Rand;
+use crate::{errors::SocketError, frame::{DataFrame, Opcode, ReadDataFrame}, handshake::handle_handshake, response::Response};
 
 
 pub struct SocketServer<T> where T: Send{

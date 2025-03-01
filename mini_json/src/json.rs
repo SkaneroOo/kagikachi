@@ -221,23 +221,27 @@ fn parse_string(bytes: &[u8], position: &mut usize) -> Result<Value, &'static st
     let start = *position;
     let mut skip = false;
     loop {
+        if *position == bytes.len() {
+            return Err("Invalid data")
+        }
         if skip {
             *position += 1;
             skip = false;
             continue
         }
-        if bytes[*position] == b'\\' {
-            *position += 1;
-            skip = true;
-            continue
-        }
-        if bytes[*position] == b'"' {
-            *position += 1;
-            return Ok(Value::String(String::from_utf8_lossy(&bytes[start..*position-1]).to_string()))
-        }
-        *position += 1;
-        if *position == bytes.len() {
-            return Err("Invalid data")
+        match bytes[*position] {
+            b'\\' => {
+                *position += 1;
+                skip = true;
+                continue
+            }
+            b'"' => {
+                *position += 1;
+                return Ok(Value::String(String::from_utf8_lossy(&bytes[start..*position-1]).to_string()))
+            }
+            _ => {
+                *position += 1;
+            }
         }
     }
 

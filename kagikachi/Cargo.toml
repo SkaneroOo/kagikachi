@@ -1,0 +1,9 @@
+[package]
+name = "kagikachi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sockets = { path = "../sockets" }
+utils = { path = "../utils" }
+mini_json = { path = "../mini_json" }

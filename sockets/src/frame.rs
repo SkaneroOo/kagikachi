@@ -1,8 +1,6 @@
 use std::{io::{Read as _, Write as _}, net::TcpStream, ops::BitOr};
 
-use crate::sockets::response::Response;
-
-use super::errors;
+use super::{errors, response::Response};
 
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

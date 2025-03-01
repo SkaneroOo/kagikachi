@@ -5,3 +5,23 @@ version = 4
 [[package]]
 name = "kagikachi"
 version = "0.1.0"
+dependencies = [
+ "mini_json",
+ "sockets",
+ "utils",
+]
+
+[[package]]
+name = "mini_json"
+version = "0.1.0"
+
+[[package]]
+name = "sockets"
+version = "0.1.0"
+dependencies = [
+ "utils",
+]
+
+[[package]]
+name = "utils"
+version = "0.1.0"

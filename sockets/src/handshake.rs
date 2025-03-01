@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::{BufRead as _, BufReader, Write as _}, net::TcpStream};
 
-use crate::utils::{sha1, encode};
+use utils::{sha1, encode};
 
 use super::errors::SocketError;
 

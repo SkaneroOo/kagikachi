@@ -1,4 +1,8 @@
-[package]
-name = "kagikachi"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+    "kagikachi",
+    "sockets",
+    "utils",
+    "mini_json"
+]
+resolver = "2"

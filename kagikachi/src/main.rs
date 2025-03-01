@@ -1,7 +1,4 @@
-mod sockets;
-mod utils;
-
-use utils::json::Value;
+use mini_json::Value;
 
 use std::collections::HashMap;
 
