@@ -1,4 +1,5 @@
 const CHARS: [char; 64] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'];
+const REV_CHARS: [u8; 80] = [62, 0, 0, 0, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 0, 0, 0, 0, 0, 0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51];
 const PADDING: char = '=';
 
 pub fn encode(bytes: &[u8]) -> String {
@@ -38,27 +39,26 @@ pub fn decode(bytes: &str) -> Vec<u8> {
 
     let mut result = Vec::new();
 
-    let bytes = bytes.replace('=', "");
-    let bytes = bytes.chars().collect::<Vec<char>>();
+    let bytes = bytes.chars().filter(|&c| c != PADDING).map(|c| (c as u8 - b'+') as usize).collect::<Vec<usize>>();
 
     let mut iterator = bytes.chunks_exact(4);
 
     while let Some(chunk) = iterator.next() {
-        result.push(((CHARS.iter().position(|&c| c == chunk[0]).unwrap() as u8) << 2) | ((CHARS.iter().position(|&c| c == chunk[1]).unwrap() as u8) >> 4));
-        result.push(((CHARS.iter().position(|&c| c == chunk[1]).unwrap() as u8) << 4) | ((CHARS.iter().position(|&c| c == chunk[2]).unwrap() as u8) >> 2));
-        result.push(((CHARS.iter().position(|&c| c == chunk[2]).unwrap() as u8) << 6) | (CHARS.iter().position(|&c| c == chunk[3]).unwrap() as u8));
+        result.push((REV_CHARS[chunk[0]] << 2) | ((REV_CHARS[chunk[1]] >> 4)));
+        result.push((REV_CHARS[chunk[1]] << 4) | ((REV_CHARS[chunk[2]] >> 2)));
+        result.push((REV_CHARS[chunk[2]] << 6) | ( REV_CHARS[chunk[3]]      ));
     }
 
     match iterator.remainder() {
-        [a, b, d] => {
-            result.push(((CHARS.iter().position(|&c| c == *a).unwrap() as u8) << 2) | ((CHARS.iter().position(|&c| c == *b).unwrap() as u8) >> 4));
-            result.push(((CHARS.iter().position(|&c| c == *b).unwrap() as u8) << 4) | ((CHARS.iter().position(|&c| c == *d).unwrap() as u8) >> 2));
+        [a, b, c] => {
+            result.push((REV_CHARS[*a] << 2) | ((REV_CHARS[*b] >> 4)));
+            result.push((REV_CHARS[*b] << 4) | ((REV_CHARS[*c] >> 2)));
         },
         [a, b] => {
-            result.push(((CHARS.iter().position(|&c| c == *a).unwrap() as u8) << 2) | ((CHARS.iter().position(|&c| c == *b).unwrap() as u8) >> 4));
+            result.push((REV_CHARS[*a ] << 2) | ((REV_CHARS[*b] >> 4)));
         },
         [a] => {
-            result.push(((CHARS.iter().position(|&c| c == *a).unwrap() as u8) << 2));
+            result.push(REV_CHARS[*a] << 2);
         },
         _ => {}
     }
