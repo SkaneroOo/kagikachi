@@ -83,3 +83,36 @@ pub fn sha1(data: &[u8]) -> [u8; 20] {
 
     ret
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sha1_1() {
+        let msg = "Test message".as_bytes();
+
+        assert_eq!(sha1(msg), [141, 227, 155, 71, 34, 32, 127, 45, 162, 168, 49, 232, 115, 79, 2, 231, 64, 193, 87, 56]);
+    }
+
+    #[test]
+    fn test_sha1_2() {
+        let msg = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.".as_bytes();
+
+        assert_eq!(sha1(msg), [205, 54, 179, 112, 117, 138, 37, 155, 52, 132, 80, 132, 166, 204, 56, 71, 60, 185, 94, 39]);
+    }
+
+    #[test]
+    fn test_sha1_3() {
+        let msg = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+        assert_eq!(sha1(&msg), [86, 23, 139, 134, 165, 127, 172, 34, 137, 154, 153, 100, 24, 92, 44, 201, 110, 125, 165, 137]);
+    }
+
+    #[test]
+    fn test_sha1_4() {
+        let msg = [];
+
+        assert_eq!(sha1(&msg), [218, 57, 163, 238, 94, 107, 75, 13, 50, 85, 191, 239, 149, 96, 24, 144, 175, 216, 7, 9]);
+    }
+}

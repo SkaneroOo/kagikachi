@@ -407,3 +407,87 @@ impl Into<String> for &Value {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize_1() {
+        let json = r#"{"foo": "bar", "baz": [1, 2, 3]}"#;
+        let value = Value::deserialize(json).unwrap();
+        assert_eq!(value, Value::Object(HashMap::from([
+            ("foo".to_string(), Value::String("bar".to_string())),
+            ("baz".to_string(), Value::Array(vec![Value::Integer(1), Value::Integer(2), Value::Integer(3)]))
+        ])));
+    }
+
+    #[test]
+    fn test_deserialize_2() {
+        let json = r#"{"menu": {
+  "id": "file",
+  "value": "File",
+  "popup": {
+    "menuitem": [
+      {"value": "New", "onclick": "CreateNewDoc()"},
+      {"value": "Open", "onclick": "OpenDoc()"},
+      {"value": "Close", "onclick": "CloseDoc()"}
+    ]
+  }
+}}"#;
+        let value = Value::deserialize(json).unwrap();
+        assert_eq!(value, Value::Object(HashMap::from([
+            ("menu".to_string(), Value::Object(HashMap::from([
+                ("id".to_string(), Value::String("file".to_string())),
+                ("value".to_string(), Value::String("File".to_string())),
+                ("popup".to_string(), Value::Object(HashMap::from([
+                    ("menuitem".to_string(), Value::Array(vec![
+                        Value::Object(HashMap::from([
+                            ("value".to_string(), Value::String("New".to_string())),
+                            ("onclick".to_string(), Value::String("CreateNewDoc()".to_string()))
+                        ])),
+                        Value::Object(HashMap::from([
+                            ("value".to_string(), Value::String("Open".to_string())),
+                            ("onclick".to_string(), Value::String("OpenDoc()".to_string()))
+                        ])),
+                        Value::Object(HashMap::from([
+                            ("value".to_string(), Value::String("Close".to_string())),
+                            ("onclick".to_string(), Value::String("CloseDoc()".to_string()))
+                        ]))
+                    ]))
+                ])))
+            ])))
+        ])));
+    }
+
+    #[test]
+    fn test_serialize_1() {
+        let value = Value::Object(HashMap::from([
+            ("baz".to_string(), Value::Array(vec![Value::Integer(1), Value::Integer(2), Value::Integer(3)]))
+        ]));
+        assert_eq!(value.serialize(), r#"{"baz": [1, 2, 3]}"#);
+    }
+
+    #[test]
+    fn test_serialize_2() {
+        let value = Value::Object(HashMap::from([
+            ("menu".to_string(), Value::Object(HashMap::from([
+                ("popup".to_string(), Value::Object(HashMap::from([
+                    ("menuitem".to_string(), Value::Array(vec![
+                        Value::Object(HashMap::from([
+                            ("value".to_string(), Value::String("New".to_string())),
+                        ])),
+                        Value::Object(HashMap::from([
+                            ("onclick".to_string(), Value::String("OpenDoc()".to_string()))
+                        ])),
+                        Value::Object(HashMap::from([
+                            ("value".to_string(), Value::String("Close".to_string())),
+                        ]))
+                    ]))
+                ])))
+            ])))
+        ]));
+        assert_eq!(value.serialize(), r#"{"menu": {"popup": {"menuitem": [{"value": "New"}, {"onclick": "OpenDoc()"}, {"value": "Close"}]}}}"#)
+    }
+}
