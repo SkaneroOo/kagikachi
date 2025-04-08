@@ -26,6 +26,7 @@
 ```sh
 cargo build --release
 ```
+Compiled binary file is located inside /target/release/
 
 ## Testing
 ```sh
