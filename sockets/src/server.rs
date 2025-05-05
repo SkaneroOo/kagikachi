@@ -17,7 +17,7 @@ pub struct SocketServer<T> where T: Send{
 impl<T> SocketServer<T> where T: Send{
     pub fn new(message_handler: fn(DataFrame, &mut T) -> Response, error_handler: fn(SocketError), internal_data: T) -> Self {
         Self {
-            listener: TcpListener::bind("localhost:7878").unwrap(),
+            listener: TcpListener::bind("0.0.0.0:7878").unwrap(),
             rand: Rand::new(),
             message_handler,
             error_handler,
@@ -65,6 +65,7 @@ impl<T> SocketServer<T> where T: Send{
             }
 
             if data.opcode == Opcode::ConnectionClosed {
+                println!("Connection closed");
                 conn.shutdown(Shutdown::Both).unwrap();
                 return
             }
@@ -76,6 +77,9 @@ impl<T> SocketServer<T> where T: Send{
             }
 
             let payload = response.set_mask(self.rand.get_mask()).build();
+            for byte in payload.iter() {
+                print!("{:x}", byte);
+            }
             conn.write_all(&payload).unwrap();
             conn.flush().unwrap();
         }
