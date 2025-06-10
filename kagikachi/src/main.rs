@@ -165,7 +165,7 @@ fn message_handler(msg: DataFrame, storage: &mut HashMap<String, Value>) -> Resp
         "del" => del_cmd(args, storage),
         "dump" => dump_cmd(storage),
         "load" => load_cmd(args, storage),
-        "ping" => ping_cmd()
+        "ping" => ping_cmd(),
         _ => Response::builder().set_body("Unknown command")
     }
 }
