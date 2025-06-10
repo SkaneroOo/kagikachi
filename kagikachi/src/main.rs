@@ -144,6 +144,10 @@ fn load_cmd(args: &str, storage: &mut HashMap<String, Value>) -> Response {
     }
 }
 
+fn ping_cmd() -> Response {
+    Response::builder().set_body("PONG")
+}
+
 fn message_handler(msg: DataFrame, storage: &mut HashMap<String, Value>) -> Response {
     match msg.opcode {
         Opcode::Text => (),
@@ -161,6 +165,7 @@ fn message_handler(msg: DataFrame, storage: &mut HashMap<String, Value>) -> Resp
         "del" => del_cmd(args, storage),
         "dump" => dump_cmd(storage),
         "load" => load_cmd(args, storage),
+        "ping" => load_cmd()
         _ => Response::builder().set_body("Unknown command")
     }
 }
